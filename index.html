@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>AVL Data</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <style>
+        body,
+        html,
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        .floating-alerts {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            left: 0;
+            z-index: 9999;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar fixed-top navbar-light bg-dark p-4">
+        <h1 class="text-light">AVL</h1>
+    </nav>
+    <div id="map"></div>
+
+    <div class="floating-alerts m-4" id="alerts-container"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        var map = L.map('map').setView([-34.51388, -58.49105], 13);
+
+        var mbAttr = 'bsmartlab © AVL',
+            mbUrl =
+                'https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoiZXJpY2hlaW5pdHoiLCJhIjoiY2xnM29tMGloMGI5aTNycXl1YTd0ZWRudSJ9.7_SdnyXFPw56KWD1fVbisA';
+
+        var tiles = L.tileLayer(mbUrl, {
+            id: 'mapbox/navigation-guidance-night-v4',
+            maxZoom: 20,
+            attribution: mbAttr,
+            tileSize: 512,
+            zoomOffset: -1
+        }).addTo(map);
+
+        const redIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+            iconSize: [50, 82],
+            iconAnchor: [24, 82],
+            popupAnchor: [1, -34],
+        });
+
+        const blueIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+            iconSize: [50, 82],
+            iconAnchor: [24, 82],
+            popupAnchor: [1, -68],
+        });
+
+        function addMarkerAndZoom(timestamp, latitud, longitud, priority, altura, angulo, satelites, velocidad, hdop, evento) {
+            const icon = priority === 1 ? redIcon : blueIcon;
+            const marker = L.marker([latitud, longitud], { icon }).addTo(map);
+
+            const timestampDate = new Date(timestamp);
+
+            const options = {
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: 'numeric',
+                second: 'numeric',
+                // timeZoneName: 'short',
+                timeZone: 'America/Argentina/Buenos_Aires'
+            };
+
+            const formattedTimestamp = new Intl.DateTimeFormat('es-AR', options).format(timestampDate);
+
+            const alertContent = `
+                                    <div class="alert ${priority === 1 ? 'alert-danger' : 'alert-info'} alert-dismissible fade show" role="alert">
+                                        <strong class="h1">${formattedTimestamp}</strong> <br>
+                                        <strong class="h1">Velocidad: ${velocidad}</strong> <br>
+                                        ${latitud}, ${longitud}<br>
+                                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                `;
+
+
+            $('#alerts-container').prepend(alertContent);
+
+            if (priority !== 1) {
+                setTimeout(() => {
+                    $(`.alert-${priority === 1 ? 'danger' : 'info'}`).alert('close');
+                }, 10000);
+            }
+
+            map.setView([latitud, longitud], 17);
+        }
+
+        socket.on('gps', (data) => {
+            console.log(data);
+            const { timestamp, latitud, longitud, priority, altura, angulo, satelites, velocidad, hdop, evento } = data;
+            addMarkerAndZoom(timestamp, latitud, longitud, priority, altura, angulo, satelites, velocidad, hdop, evento);
+        });
+
+        function updateMapSize() {
+            const map = document.getElementById('map');
+            map.style.height = window.innerHeight + 'px';
+            map.style.width = window.innerWidth + 'px';
+        }
+
+        window.addEventListener('load', updateMapSize);
+        window.addEventListener('resize', updateMapSize);
+
+    </script>
+</body>
+
+</html>
